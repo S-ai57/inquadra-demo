@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <title>prova stati — Inquadra</title>
+    <link rel="stylesheet" href="css/style.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="js/data.js"></script>
+    <script src="js/busta.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/esame.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+      /* Percorre la demo come farebbe l'ufficio del personale, senza clic
+         veri: serve a fotografare gli stati e ad accorgersi se la pagina rompe.
+         Non fa parte della demo: si apre con prova-stati.html#1…14
+         (stato 1 = apertura sulla coda). L'attesa di 40 secondi non viene mai
+         aspettata: lo stato 3 la fotografa, gli altri la saltano con posa() +
+         esameSubito(), come fa il pulsante «mostra l'esame di prima». */
+      const passo = Number((location.hash || "#1").slice(1)) || 1;
+      const esito = [];
+      const pre = document.createElement("pre");
+      pre.id = "esito-prova";
+      pre.style.cssText = "background:#302A63;color:#fff;padding:12px 16px;font:13px/1.5 monospace;margin:0";
+      document.body.prepend(pre);
+
+      function pret(sel, etichetta) {
+        const n = document.querySelector(sel);
+        if (!n) throw new Error("manca " + etichetta + " (" + sel + ")");
+        if (!String(n.textContent).trim()) throw new Error(etichetta + " è vuoto");
+        return "ok  " + etichetta;
+      }
+      function conta(sel, numero, etichetta) {
+        const n = document.querySelectorAll(sel).length;
+        if (n !== numero) throw new Error(etichetta + ": attesi " + numero + ", trovati " + n);
+        return "ok  " + etichetta + " = " + n;
+      }
+      function almeno(sel, minimo, etichetta) {
+        const n = document.querySelectorAll(sel).length;
+        if (n < minimo) throw new Error(etichetta + ": almeno " + minimo + " attesi, trovati " + n);
+        return "ok  " + etichetta + " = " + n;
+      }
+      function nessuno(sel, etichetta) {
+        const n = document.querySelectorAll(sel).length;
+        if (n) throw new Error(etichetta + ": non dovrebbe esserci, trovato " + n);
+        return "ok  " + etichetta;
+      }
+      function contiene(sel, parola, etichetta) {
+        const n = document.querySelector(sel);
+        if (!n) throw new Error("manca " + sel);
+        if (n.textContent.indexOf(parola) < 0) throw new Error(etichetta + ": «" + parola + "» non trovato in " + n.textContent.slice(0, 110));
+        return "ok  " + etichetta;
+      }
+      function schermataPulita() {
+        const t = document.getElementById("app").textContent;
+        const colta = t.match(/.{0,40}(NaN|undefined|\[object|[0-9a-z_]+,\d{1,2}\d{1,2}\b)[^,]{0,30}/);
+        if (/NaN|undefined|\[object/.test(t)) throw new Error("numeri rotti a schermo: " + (colta || [""])[0]);
+        return "ok  nessun numero rotto a schermo";
+      }
+      function riparti() { Store.azzera(); statoApp.esame = null; statoApp.risposte = []; disegna(); }
+
+      try {
+        riparti();
+        if (passo === 1) {
+          esito.push(pret(".elenco", "coda delle posizioni all'apertura"));
+          esito.push(conta(".riga", DIPENDENTI.length, "righe della coda"));
+          esito.push(conta("[data-apri]", DIPENDENTI.length, "pulsanti per aprire la posizione"));
+          esito.push(pret(".cifra-occhio", "il numero in testata"));
+          esito.push(pret(".valutatore", "blocco per chi valuta l'app"));
+        } else if (passo === 2) {
+          apriPosizione("pellizzari");
+          esito.push(conta(".fatto", 3, "fatti della posizione"));
+          esito.push(pret(".atti", "gli atti da cui risultano"));
+          esito.push(pret("#verdetto", "l'inquadramento arriva subito, senza attesa"));
+          esito.push(conta(".cand", Object.keys(ARCHIVIO_CCNL).length, "carte dei contratti"));
+          esito.push(conta(".clausola", statoApp.verdetto.righe.length, "clausole in mappa"));
+          esito.push(pret("#cta-busta", "il pulsante che avvia l'esame della busta"));
+          esito.push(nessuno("#esame", "l'esame prima del pulsante"));
+        } else if (passo === 3) {
+          apriPosizione("pellizzari");
+          statoApp.lavorazione = { inizio: Date.now() - 21000, fase: 2, timer: null, tick: null };
+          disegna();
+          esito.push(pret("#lavorazione", "l'esame della busta in corso"));
+          esito.push(conta(".lav-fasi li", 4, "le fasi annunciate"));
+          esito.push(pret(".lav-conta", "il conto alla rovescia"));
+          esito.push(nessuno("#esame", "il risultato prima della fine"));
+        } else if (passo >= 4 && passo <= 6) {
+          const mappa = { 4: ["pellizzari", "ccnl_non_pertinente"], 5: ["ferrante", "inquadramento_da_riallineare"], 6: ["sartori", "decide_una_persona"] };
+          const [id, atteso] = mappa[passo];
+          posa(id); disegna();
+          if (statoApp.verdetto.stato !== atteso) throw new Error("verdetto atteso " + atteso + ", arrivato " + statoApp.verdetto.stato);
+          esito.push("ok  verdetto " + atteso);
+          esito.push(pret(".verdetto-chi", "chi decide o chi paga"));
+          esito.push(conta(".cand", Object.keys(ARCHIVIO_CCNL).length, "contratti dell'archivio mostrati"));
+          esito.push(conta(".clausola", statoApp.verdetto.righe.length, "clausole in mappa"));
+          esito.push("ok  " + document.querySelector("#frase-verdetto").innerText);
+          esito.push(schermataPulita());
+        } else if (passo === 7) {
+          posa("pellizzari"); esameSubito(); disegna();
+          esito.push(pret("#esame", "l'esame della busta"));
+          esito.push(conta(".busta .voce", BUSTE.pellizzari.righe.length, "le voci del prospetto spiegate"));
+          esito.push(almeno(".busta ~ .voce", 2, "le voci che il contratto prevede e non compaiono"));
+          esito.push(contiene("#esame .legenda", "il contratto la prevede", "la legenda spiega cosa promette ogni segno"));
+          esito.push(contiene("#esame", "156,00", "il Fondo Est che manca con la sua cifra annua"));
+          esito.push(schermataPulita());
+        } else if (passo === 8) {
+          posa("pellizzari", "alimentari"); esameSubito(); disegna();
+          esito.push(contiene("#esame", "di un altro contratto", "l'indennità di cassa letta come voce di un altro contratto"));
+          esito.push(contiene("#esame", "218", "la fonte dell'articolo citata"));
+          esito.push(schermataPulita());
+        } else if (passo === 9) {
+          posa("el_amrani"); esameSubito(); disegna();
+          esito.push(pret(".busta-netto", "il netto rifatto a mano"));
+          esito.push(contiene("#esame", "Alifond", "la quota del fondo che non viene versata"));
+          esito.push(almeno(".cifra", 8, "le cifre del documento"));
+          esito.push(almeno(".fonte", 10, "la fonte dietro ogni riga"));
+          esito.push(schermataPulita());
+        } else if (passo === 10) {
+          posa("doumbia"); esameSubito(); poniDomandaSilenzioso("Come funziona il part-time?"); disegna();
+          esito.push(almeno(".risposta li", 3, "la risposta alla domanda sul part-time"));
+          esito.push(contiene(".risposta", "64,8", "il monte ore proporzionato citato"));
+          esito.push(almeno(".cita .cod", 1, "la risposta cita le voci del prospetto"));
+          esito.push(schermataPulita());
+        } else if (passo === 11) {
+          posa("sartori", "logistica"); esameSubito(); disegna();
+          esito.push(contiene("#esame", "non torna", "l'anomalia del netto segnalata"));
+          esito.push(contiene("#esame", "46,48", "la diaria con la soglia di legge"));
+          esito.push(almeno(".badge.da_verificare", 2, "le righe che chiedono una persona"));
+          esito.push(schermataPulita());
+        } else if (passo === 12) {
+          posa("bruni"); esameSubito(); disegna();
+          esito.push(pret("#esame", "l'esame della posizione pulita"));
+          esito.push(conta(".busta .voce", BUSTE.bruni.righe.length, "le voci spiegate una per una"));
+          esito.push(pret(".vuoto", "la riga che dice che non manca niente"));
+          esito.push(schermataPulita());
+        } else if (passo === 13) {
+          posa("moretti"); esameSubito(); poniDomandaSilenzioso("perché ha trovato 58,44 € in meno?"); disegna();
+          esito.push(contiene(".risposta", "58,44", "la cifra chiesta agganciata alla sua voce"));
+          esito.push(contiene(".risposta", "T08", "il codice voce citato nella risposta"));
+          esito.push(schermataPulita());
+        } else if (passo === 14) {
+          posa("sartori"); esameSubito(); poniDomandaSilenzioso("mi spiega il barometro?"); disegna();
+          esito.push(contiene(".risposta", "Non ho trovato", "la domanda fuori tema gestita a parole"));
+          esito.push(almeno(".risposta li", 1, "l'elenco delle voci che l'app ha davanti"));
+          esito.push(schermataPulita());
+        } else if (passo === 15) {
+          posa("bruni", "logistica"); disegna();
+          esito.push(pret(".blocco-avvertenza, .soglia-nota", "l'avviso che la scelta è di chi guarda"));
+          esito.push(conta(".clausola", statoApp.verdetto.righe.length, "clausole del contratto scelto"));
+          esito.push(contiene("#mappa", "miglior favore", "il passaggio di contratto presidiato"));
+        } else if (passo === 16) {
+          posa("pellizzari"); disegna();
+          document.querySelector("#vedi-nota").click();
+          esito.push(pret("#nota-testo", "nota per il consulente"));
+          const testo = document.querySelector("#nota-testo").innerText;
+          statoApp.verdetto.righe
+            .filter((r) => r.stato === "da_attivare" || r.stato === "a_rischio")
+            .forEach((r) => { if (testo.indexOf(r.fonte) < 0) throw new Error("la nota non cita la fonte di " + r.titolo); });
+          esito.push("ok  ogni clausola aperta è citata con la sua fonte");
+        } else if (passo === 17) {
+          apriPosizione("pellizzari"); guidaApri();
+          esito.push(pret(".tour.acceso", "guida aperta"));
+          esito.push(conta(".tour-punti i", GUIDA.length, "passi della guida"));
+          const alto = document.querySelector("#guida-avanti").getBoundingClientRect();
+          if (alto.bottom > window.innerHeight) throw new Error("il pulsante della guida è fuori schermo");
+          esito.push("ok  pulsante dell'ultimo passo nello schermo");
+        } else {
+          throw new Error("stato " + passo + " non definito");
+        }
+        pre.textContent = "stato #" + passo + " PASSATO\n" + esito.join("\n");
+      } catch (e) {
+        pre.textContent = "stato #" + passo + " ROTTO\n" + esito.join("\n") + "\n" + e.message;
+        document.title = "ROTTO";
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+# la chiave del modello e il token del link vivono solo qui
+.env
+.DS_Store
+__pycache__/
+*.pyc
