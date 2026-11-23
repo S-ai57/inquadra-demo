@@ -250,7 +250,8 @@ function bustaCTAHTML(p) {
     + " Esamina la busta paga di " + esc(b ? b.mese : "questo mese") + "</h3>"
     + "<p>L’app legge il documento voce per voce, rifà i conti e dice cosa torna, cosa è applicato male e cosa manca. "
     + (modelloUsabile()
-        ? "I numeri li calcola il motore, la scrittura è di " + nomeModello() + ": una dozzina di secondi.</p>"
+        ? "I numeri li calcola il motore, la scrittura è di " + nomeModello()
+          + ": pochi secondi, e il tempo che vedi è quello vero della chiamata.</p>"
         : "Il modello non è collegato: risponde il motore deterministico, e lo dice.</p>")
     + '<button class="primario" id="avvia-esame">' + icona("sparkles") + " Esamina la busta paga</button>"
     + (prima ? '<div class="azioni" style="justify-content:center"><button class="secondario" id="riapri-esame">'

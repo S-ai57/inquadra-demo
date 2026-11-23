@@ -7,7 +7,7 @@ Nome provvisorio: **Inquadra**.
 
 L'app **fa una cosa sola**: prende la busta paga di una persona e la esamina.
 
-**Esame della busta paga** (l'«AI moment»: una dozzina di secondi di modello vero): l'app legge
+**Esame della busta paga** (l'«AI moment»: 2-4 secondi di modello vero, misurati): l'app legge
 il documento voce per voce,
 spiega ogni riga con la clausola che la genera, rifà i conti, segnala le voci che il contratto
 prevede e la busta non versa, e **risponde alle domande** di chi legge.
@@ -154,10 +154,13 @@ torna, non è da riscrivere.
 - **i numeri restano del motore**: pertinenza, stati, aderenza ed esame sono regole deterministiche.
   Il modello *scrive*, non *decide*. Se non risponde, l'app ha comunque la sua risposta e scrive
   chi ha parlato;
-- **un modello ragionante va tenuto corto**: `DeepSeek-V4-Flash` pensa prima di scrivere. Senza
-  `reasoning_effort: «low»`, o con budget stretto, finiva i token nel ragionamento e lasciava il
-  testo vuoto — dall'esterno sembrava «il modello non risponde». Ora: budget raddoppiato una volta
-  sola, e un messaggio che nomina la causa invece di incolpare la rete;
+- **un modello ragionante va spento, quando non serve**: `DeepSeek-V4-Flash` pensa prima di
+  scrivere, e i token sono condivisi fra pensiero e testo. Misurato sulla stessa lettura di tre
+  posizioni: `reasoning_effort: «low»` → 20-22 secondi e in **due prove su tre il testo non
+  arrivava affatto** (`finish_reason: length`, ragionamento 8.000-17.000 caratteri);
+  `reasoning_effort: «none»` → **1,4-2,6 secondi, testo scritto, cifre giuste**. I conti li fa il
+  motore: qui il pensiero era solo tempo. Resta una scala di ripiego (none 4000 token, poi low
+  7000) e un messaggio che nomina la causa invece di incolpare la rete;
 - **niente chiamata fuori dal pulsante** (regola del kit): né all'apertura, né sulla scelta del
   contratto, né sul cambio «rileggi con il contratto» — lì l'esame è regole e arriva subito.
 
@@ -172,10 +175,9 @@ torna, non è da riscrivere.
 - **HTTP/1.1 e errori nel corpo, non nel codice**: con le risposte in HTTP/1.0 Cloudflare non le
   riconosce e ci mette sopra la sua pagina di errore, e il motivo vero — «il modello ha finito lo
   spazio per pensare» — non lo leggerebbe nessuno.
-- **budget misurato, non intuito**: su questo gateway il ragionamento per una busta da 11 voci è
-  ~7000 caratteri e i token sono condivisi fra ragionamento e testo. Sotto ~6000 token il testo
-  **non arriva mai** (`finish_reason: length`, `content` vuoto, due prove su due) e si perdono 30
-  secondi. Ora: 6000 token per la lettura, 4500 per le risposte, una sola prova in più al +50%.
+- **budget misurato, non intuito**: la scala di prova è scritta nel codice (`SCALA = none/2600 →
+  none/4000 → low/7000`) perché è il numero che decide se la demo risponde in due secondi o in
+  trenta. Il livello base sta largo e la prova in più scatta solo se il modello non scrive testo.
 
 ## Release successive (fuori dal prototipo, NON sono schermate)
 
@@ -216,7 +218,7 @@ Nessuna delle due si deduce dall'esistenza di questo prototipo locale.
 - `python3 prova-modello.py` — **29 asserzioni superate**, chiamata reale al gateway inclusa: gli
   importi di tutte le 11 righe della busta riconosciuti, le invenzioni fermate (`999.999,99 €`,
   la voce `M99`, un fondo inesistente), i prompt sotto i 24.000 caratteri e senza HTML, la risposta
-  in italiano entro il minuto (13–17 s la lettura, 4–7 s una domanda);
+  in italiano entro il minuto (letture misurate 1,7-2,2 s, risposte 2-6 s);
 - QA in browser reale: `prova-stati.html#1…14` pilota coda, posizione, esame in corso, voci,
   conti, voci mancanti, «rileggi con il contratto», domande, part-time, busta pulita, guardia sulle
   cifre del modello e guida — **14/14 passati, zero errori di script** (modello disinserito con
@@ -229,7 +231,7 @@ Nessuna delle due si deduce dall'esistenza di questo prototipo locale.
   il token prende da `?t=`, resta in `sessionStorage` e una pagina aperta senza token scrive
   «link senza token» invece di fingersi rotta;
 - QA in browser **col modello acceso**, da `http://127.0.0.1:8791`: chip in testata
-  `modello: DeepSeek-V4-Flash`, lettura scritta in 13–17 s e risposta a una domanda in 4–7 s,
+  `modello: DeepSeek-V4-Flash`, lettura scritta in 2-4 s e risposta a una domanda in 2-6 s,
   firma con i secondi corsi, «cifre e codici tutti del documento» nei percorsi provati; domande
   scritte a mano (tema, codice, cifra) e nessun scorrimento orizzontale a 390px;
 - sicurezza: nessuna chiave nel codice (`grep` sul cartello js/css/html/modello = 0), nessuna chiave

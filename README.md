@@ -64,8 +64,8 @@ consulente costruita su quelle clausole. `prova-motore.js` continua a verificare
    nuovo a ogni apertura, così Safari non può mostrare una copia vecchia in cache. In Terminale
    compare se il modello è collegato. La finestra si può chiudere.
 2. Apri **Giorgia Pellizzari** → **Esamina la busta paga**: i numeri arrivano subito, la lettura
-   del modello dopo una dozzina di secondi (può arrivare a una trentina: il tempo che si vede a
-   schermo è quello vero, non un conto alla rovescia messo lì per scenografia).
+   del modello in 2-4 secondi (tre posizioni misurate: 1,7 s, 2,2 s, 4,0 s). Il tempo che si vede a
+   schermo è quello vero della chiamata, non un conto alla rovescia messo lì per scenografia.
 3. Apri **Mirko Sartori**, premi **Logistica** sotto «rileggi con il contratto»: il netto del
    documento non torna con le sue righe, la diaria delle uscite non c'è, e senza tabella permessi
    l'app non confronta le ore — lo dice invece di inventarle.
@@ -119,6 +119,10 @@ il collega apre un link.
    lo dice in italiano). La pagina e i suoi file si possono aprire anche senza token, perché non
    contengono niente di segreto.
 
+Prima di mandare il link, un controllo di due secondi: `bash "Prova il link condiviso.sh"` verifica
+che la pagina arrivi, che la chiave ci sia, che **senza token il modello stia fermo** e che con il
+token risponda davvero (con i secondi corsi e la verifica sulle cifre).
+
 Onestá sui dettagli: la chiave del modello non passa mai al collega (la usa solo il micro-server,
 che sta su `127.0.0.1` e viene raggiunto dal tunnel); il token vive in `.env`, che è nel
 `.gitignore`; **il link cambia a ogni avvio**, quindi va ripreso dalla finestra e non dal messaggio
@@ -164,6 +168,6 @@ prima di scrivere, e senza quel campo finisce i token nel ragionamento lasciando
 `js/data.js` archivio contratti e posizioni · `js/busta.js` le buste (con i codici voce) ·
 `js/esame.js` esame della busta e risposte · `js/modello.js` la chiamata al modello e la sua
 firma · `modello/server.py` il proxy locale con la chiave · `Condividi Inquadra col collega.command`
-il link temporaneo con token · `.env` (locale, nel `.gitignore`) e `.env.example` · `js/engine.js` inquadramento e clausole
+il link temporaneo con token · `Prova il link condiviso.sh` il controllo prima di spedirlo · `.env` (locale, nel `.gitignore`) e `.env.example` · `js/engine.js` inquadramento e clausole
 (motore non ancora in schermo) · `js/app.js` interfaccia. Le versioni con le clausole a schermo
 sono in `backup/` (`app-con-clausole.js`, `style-con-clausole.css`, `prova-stati-con-clausole.html`).

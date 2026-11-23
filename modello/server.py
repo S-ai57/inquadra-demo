@@ -239,7 +239,17 @@ def testo_da_risposta(risposta):
 
 
 # ------------------------------------------------------------ chiamata al modello
-def modello_chiama(messaggi, temperatura=0.25, max_tokens=1200, riprova=True):
+# Scala di prova misurata sul gateway (busta da 11-13 voci, prompt con la sintesi):
+#   reasoning_effort "none"  → 1,4-2,6 secondi, testo scritto, cifre tutte sue dal documento
+#   reasoning_effort "low"   → 20-22 secondi, e in 2 prove su 3 il testo NON arrivava
+#   senza il campo           → 51 secondi, ragionamento 17.000 caratteri, testo vuoto
+# I conti li fa il motore deterministico, quindi qui il "pena" è tempo buttato: si
+# parte da "none" e si risale solo se il modello non scrive niente.
+SFORZO_BASE = "none"
+SCALA = [("none", 2600), ("none", 4000), ("low", 7000)]
+
+
+def modello_chiama(messaggi, temperatura=0.25, max_tokens=None, riprova=True, sforzo=SFORZO_BASE):
     k = chiave()
     if not k:
         return {"errore": "chiave non trovata", "modello": MODELLO}
@@ -247,10 +257,8 @@ def modello_chiama(messaggi, temperatura=0.25, max_tokens=1200, riprova=True):
         "model": MODELLO,
         "messages": [{"role": "system", "content": RUOLO}] + messaggi,
         "temperature": temperatura,
-        "max_tokens": max_tokens,
-        # DeepSeek-V4-Flash ragiona prima di rispondere: senza un budget basso per il
-        # ragionamento brucia tutti i token in reasoning_content e non scrive il testo
-        "reasoning_effort": "low",
+        "max_tokens": max_tokens or SCALA[0][1],
+        "reasoning_effort": sforzo,
     }).encode()
     richiesta = urllib.request.Request(
         BASE + "/chat/completions", data=corpo,
@@ -276,15 +284,19 @@ def modello_chiama(messaggi, temperatura=0.25, max_tokens=1200, riprova=True):
         return {"errore": str(e)[:180], "modello": MODELLO}
     testo = testo_da_risposta(dati)
     if not testo:
-        # il ragionamento ha mangiato tutto il budget: si raddoppia, fino a un
-        # tetto, perché `DeepSeek-V4-Flash` decide da quanto a lungo pensa
-        # misurato su questo gateway: il ragionamento per una busta di 11 voci è
-        # ~7000 caratteri, perciò sotto ~6000 token il testo non arriva mai
-        if riprova and max_tokens < 9000:
-            secondo = modello_chiama(messaggi, temperatura, int(max_tokens * 1.5), riprova=False)
-            secondo["riprovato"] = True
-            secondo["secondi"] = round(secondo.get("secondi", 0) + (time.time() - t0), 1)
-            return secondo
+        # risale la scala: più token, e per ultimo rimette il ragionamento
+        if riprova:
+            try:
+                posto = SCALA.index((sforzo, max_tokens or SCALA[0][1]))
+            except ValueError:
+                posto = 0
+            if posto + 1 < len(SCALA):
+                prossimo_sforzo, prossimi_token = SCALA[posto + 1]
+                dopo = modello_chiama(messaggi, temperatura, prossimi_token, riprova=False,
+                                      sforzo=prossimo_sforzo)
+                dopo["riprovato"] = True
+                dopo["secondi"] = round(dopo.get("secondi", 0) + (time.time() - t0), 1)
+                return dopo
         return {"errore": "il modello ha finito lo spazio per pensare senza scrivere il testo",
                 "modello": MODELLO, "secondi": round(time.time() - t0, 1)}
     return {"testo": testo, "modello": dati.get("model", MODELLO),
@@ -335,11 +347,26 @@ def token_richiesto():
     return bool(TOKEN_LINK)
 
 
+def arriva_da_fuori(richiesta):
+    # True se la chiamata non viene dal computer che sta servendo l'app. Il tunnel
+    # Cloudflare arriva comunque da 127.0.0.1, ma porta i segni del passaggio
+    # (CF-Connecting-IP, oppure un Host che non è il nostro indirizzo locale): così
+    # chi apre Inquadra sul proprio Mac lavora senza pensare al token, e chi riceve
+    # il link deve averlo.
+    ip = (getattr(richiesta, "client_address", None) or ("?",))[0]
+    if ip not in ("127.0.0.1", "::1", "localhost"):
+        return True
+    if richiesta.headers.get("CF-Connecting-IP") or richiesta.headers.get("X-Forwarded-For"):
+        return True
+    host = (richiesta.headers.get("Host") or "").split(":")[0].lower()
+    return host not in ("127.0.0.1", "localhost", "[::1]", "::1", "")
+
+
 def token_ammesso(richiesta):
-    """Il token arriva dall'header X-Token o da ?t= nel link. Vale solo per
-    l'API: la pagina e i suoi file non contengono niente di segreto, e senza
-    token chi trova il link navigherebbe e basta."""
-    if not TOKEN_LINK:
+    # Il token arriva dall'header X-Token o da ?t= nel link. Serve solo a chi viene
+    # da fuori: i file della demo non contengono segreti, ma il modello costa, e non
+    # deve restarne a disposizione chi trova l'indirizzo del link.
+    if not TOKEN_LINK or not arriva_da_fuori(richiesta):
         return True
     ricevuto = (richiesta.headers.get("X-Token") or "").strip()
     if not ricevuto:
@@ -394,6 +421,15 @@ class Gestione(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         percorso = self.path.split("?")[0]
+        # il corpo si legge SEMPRE, anche quando si risponde 401 o 404: i byte non
+        # letti restano nel socket, e con HTTP/1.1 (e un tunnel che tiene vive le
+        # connessioni) la richiesta successiva arriva incollata male — "400 Bad
+        # request syntax" con in mezzo il JSON di prima.
+        try:
+            n = min(int(self.headers.get("Content-Length") or 0), 8 * 1024 * 1024)
+        except ValueError:
+            n = 0
+        grezzo = self.rfile.read(n) if n > 0 else b"{}"
         if percorso not in ("/api/leggi", "/api/chiedi"):
             return self._json(404, {"errore": "non esiste"})
         if not token_ammesso(self):
@@ -401,8 +437,7 @@ class Gestione(SimpleHTTPRequestHandler):
                                               "l’indirizzo ricevuto per intero, "
                                               "compreso ?t=…"})
         try:
-            n = int(self.headers.get("Content-Length") or 0)
-            corpo = json.loads(self.rfile.read(n).decode() or "{}")
+            corpo = json.loads(grezzo.decode("utf-8") or "{}")
         except (ValueError, UnicodeDecodeError):
             return self._json(400, {"errore": "JSON malformato"})
         try:
@@ -410,8 +445,8 @@ class Gestione(SimpleHTTPRequestHandler):
         except Exception as e:
             # meglio un errore nominato a schermo che una connessione chiusa: il
             # browser la chiamerebbe "Failed to fetch" e nessuno capirebbe niente
-            return self._json(500, {"errore": "il micro-server si è inceppato: "
-                                          + type(e).__name__ + " " + str(e)[:160]})
+            return self._json(200, {"errore": "il micro-server si è inceppato: "
+                                              + type(e).__name__ + " " + str(e)[:160]})
 
     def _esamina(self, percorso, corpo):
         esame = corpo.get("esame") or {}

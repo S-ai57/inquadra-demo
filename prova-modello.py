@@ -75,6 +75,36 @@ ok("il motore calcola la quota mensile di ci\u00f2 che manca", isinstance(mensil
 fuori_m, _ = srv.cifre_fuori("Sono %s \u20ac al mese." % srv.euro(mensile), permessi)
 ok("il mensile calcolato dal motore \u00e8 una cifra permessa", not fuori_m)
 
+# 4a-bis) chi è di casa non porta il token, chi arriva dal tunnel sì
+class _Header(dict):
+    def get(self, k, d=None):
+        return dict.get(self, k, d)
+
+
+class _Richiesta:
+    def __init__(self, ip="127.0.0.1", host="127.0.0.1:8791", token=None, cf=None,
+                 path="/api/leggi"):
+        self.client_address = (ip, 50000)
+        self.headers = _Header(Host=host)
+        if token:
+            self.headers["X-Token"] = token
+        if cf:
+            self.headers["CF-Connecting-IP"] = cf
+        self.path = path
+
+
+ok("token richiesto solo quando è configurato", srv.token_richiesto())
+ok("chi apre l'app sul proprio Mac non deve mettere il token", srv.token_ammesso(_Richiesta()))
+ok("il link del tunnel senza token è fermato",
+   not srv.token_ammesso(_Richiesta(host="qualcosa.trycloudflare.com")))
+ok("CF-Connecting-IP tradisce il visitatore remoto",
+   not srv.token_ammesso(_Richiesta(cf="203.0.113.9")))
+ok("un indirizzo che non è locale è fermato", not srv.token_ammesso(_Richiesta(ip="192.168.1.44")))
+ok("col token nel link passa", srv.token_ammesso(
+    _Richiesta(host="qualcosa.trycloudflare.com", path="/api/leggi?t=" + srv.TOKEN_LINK)))
+ok("col token nell'header passa", srv.token_ammesso(
+    _Richiesta(host="qualcosa.trycloudflare.com", token=srv.TOKEN_LINK)))
+
 # 4b) le risposte storte del gateway non devono far morire niente
 ok("risposta normale: il testo passa",
    srv.testo_da_risposta({"choices": [{"message": {"content": "  ciao  "}}]}) == "ciao")
