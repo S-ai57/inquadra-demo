@@ -127,9 +127,16 @@ Onestá sui dettagli: la chiave del modello non passa mai al collega (la usa sol
 che sta su `127.0.0.1` e viene raggiunto dal tunnel); il token vive in `.env`, che è nel
 `.gitignore`; **il link cambia a ogni avvio**, quindi va ripreso dalla finestra e non dal messaggio
 scorso; un collega senza token vede comunque l'app con i conti del motore deterministico. Se serve
-un indirizzo sempre accessibile, la cartella è già pronta per git (`.gitignore`, `.env.example`) e i
-`fetch` dell'app sanno chiamare `http://127.0.0.1:8791` anche da una pagina pubblica (CORS e
-preflight già gestiti).
+### E su GitHub
+
+- **repository**: https://github.com/S-ai57/inquadra-demo (pubblico)
+- **app aperta lì, senza modello**: https://s-ai57.github.io/inquadra-demo/ — conti, voci, domande:
+   tutto il motore deterministico funziona; in testata si legge `modello non collegato: risponde il
+   motore`, perché su Pages non c'è nessun micro-server. Per il modello serve il link qui sopra,
+   oppure chi apre la copia sua locale con la propria chiave in `.env`.
+
+Se un collega vuole la app sul proprio computer: `git clone`, copia `.env.example` in `.env`,
+metti la sua chiave (`LITELLM_EXT_API_KEY=` o `AI_API_KEY=`), doppio clic su `Apri Inquadra.command`.
 
 ## Verifiche fatte
 
